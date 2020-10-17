@@ -8,7 +8,7 @@ contract LocalIndianContract{
      event ActivatedWorldEvent(uint indexed _newWallet);
      event NewWalletInWorldEvent(uint indexed _newWallet);
     
-    enum activeIN { LocalMatrix, VIPMatrix, WorldMatrix }
+    enum ActiveIN { LocalMatrix, VIPMatrix, WorldMatrix }
     
     struct User {
         uint id;
@@ -16,7 +16,7 @@ contract LocalIndianContract{
         uint childNodes;
         uint childPayedCount;
         uint contractMony;
-        activeIN activeUser;
+        ActiveIN activeUser;
         // estos son parametros de  LinkedList
         address nextLinked;
         uint nextLinkedIdWallet;
@@ -70,7 +70,7 @@ contract LocalIndianContract{
         
         User storage userNode = users[rootAddres];
         userNode.isRoot = true;
-        userNode.activeUser = activeIN.LocalMatrix;
+        userNode.activeUser = ActiveIN.LocalMatrix;
         
         makeWallet(walletId);
         
@@ -93,7 +93,7 @@ contract LocalIndianContract{
         userNode.sponsor = _sponsor;
         userNode.childNodes = 0;
         userNode.contractMony = msg.value;
-        userNode.activeUser = activeIN.LocalMatrix;
+        userNode.activeUser = ActiveIN.LocalMatrix;
         userNode.childPayedCount = 0; 
         if(!users[_sponsor].isRoot){
             emit SignUpEvent(_newUser, userNode.id, _sponsor,  users[_sponsor].id);
@@ -106,10 +106,10 @@ contract LocalIndianContract{
     }
     
     function makeLoop(address _from, address _sponsor) private{
-        if(users[_sponsor].activeUser == activeIN.LocalMatrix){
+        if(users[_sponsor].activeUser == ActiveIN.LocalMatrix){
             localPay(_from, _sponsor);
             if(users[_sponsor].childPayedCount >= minNodesPayed){
-                users[_sponsor].activeUser = activeIN.VIPMatrix;
+                users[_sponsor].activeUser = ActiveIN.VIPMatrix;
                 users[_sponsor].childPayedCount -= minNodesPayed;
                 loopVIP(_sponsor);
             }
@@ -161,7 +161,7 @@ contract LocalIndianContract{
             if(VIP.payToHead == 2){
                 users[VIP.head].contractMony += payToHeadVIP;//*********en estas dos lineas efectuo el pago de manera interna
                 users[_newVIPNode].contractMony -= payToHeadVIP;
-                users[VIP.head].activeUser = activeIN.WorldMatrix;
+                users[VIP.head].activeUser = ActiveIN.WorldMatrix;
                 address temp2 = VIP.head;
                 VIP.head = users[temp2].nextLinked;
                 VIP.payToHead = 0;
@@ -210,7 +210,7 @@ contract LocalIndianContract{
               }
               else{
                 worldPayWallets(_backLocalNode, World.head, false);
-                users[World.head].activeUser = activeIN.LocalMatrix;
+                users[World.head].activeUser = ActiveIN.LocalMatrix;
                 address temp2 = World.head;
                 if(users[temp2].isWalletnextLinked){
                     World.isWalletHead = true;
@@ -262,7 +262,7 @@ contract LocalIndianContract{
                 }
                 else{ 
                     worldPayWallets(rootAddres, World.head, World.isWallettail);
-                    users[World.head].activeUser = activeIN.LocalMatrix;
+                    users[World.head].activeUser = ActiveIN.LocalMatrix;
                     if(users[World.head].isWalletnextLinked){
                         World.isWalletHead = true;
                         World.headWallet = users[World.head].nextLinkedIdWallet;

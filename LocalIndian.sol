@@ -1,309 +1,272 @@
 pragma solidity ^0.5.10;
 
 contract LocalIndianContract{
-     event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
-     event NewVIPNodeEvent(address indexed _newNode, uint indexed _userId, address indexed _parentNode, uint _parentNodeId);
-     event NewiIntitialVIPNodeEvent(address indexed _newNode, uint indexed _userId);
-     event NewWorldNodeEvent(address indexed _newNode, uint indexed _userId, address indexed _parentNode, uint _parentNodeId);
-     event ActivatedWorldEvent(uint indexed _newWallet);
-     event NewWalletInWorldEvent(uint indexed _newWallet);
     
-    enum ActiveIN { LocalMatrix, VIPMatrix, WorldMatrix }
+    event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
+    event ReturnNodeToLocalEvent(address indexed _nodeReturn, uint indexed _userIdNodeREturn, address indexed _sponsor, uint _sponsorId);
+    event NewVIPNodeEvent(address indexed _newNode, uint indexed _userId, address indexed _parentNode, uint _parentNodeId);
+    event NewiIntitialVIPNodeEvent(address indexed _newNode, uint indexed _userId);
+    event NewiIntitialWorldNodeEvent(address indexed _newNode, uint indexed _userId);
+    event NewWorldNodeEvent(address indexed _newNode, uint indexed _userId, address indexed _parentNode, uint _parentNodeId);
+    event PayWalletInWorldEvent(address indexed _payable, uint indexed amount);
+    event PayLocalEvent(address indexed _payable, uint indexed _amaount, address indexed payer);
+    event PayVIPEvent(address indexed _payable, uint indexed _amaount, address indexed payer);
+    event PayWorldEvent(address indexed _payable, uint indexed _amaount, address indexed payer);
+    
+    enum activeIN { LocalMatrix, VIPMatrix, WorldMatrix }
+    enum payType {VIPPAy, WorldPay, WalletPay}
     
     struct User {
         uint id;
         address sponsor;
-        uint childNodes;
         uint childPayedCount;
-        uint contractMony;
-        ActiveIN activeUser;
-        // estos son parametros de  LinkedList
+        activeIN activeUser;
         address nextLinked;
-        uint nextLinkedIdWallet;
-        bool isWalletnextLinked;
         bool isRoot;
     }
-    struct Wallet {
-        uint id;
-        uint payCount;
-        uint contractMony;
-        address nextLinked;
-        bool isWalletNext;
-        uint nextLinkedWallet;
-    }
     struct LinkedList{
-        uint length;
         address head;
         address tail;
         uint payToHead;
         bool empty;
-        
-        bool isWalletHead;
-        bool isWallettail;
-        uint headWallet;
-        uint tailwallet;
     }
     
     uint nodeId = 1;
-    uint walletId=1;
-    uint initialPay;
+    uint256 initialPay;
     uint payToSponsorLocal;
     uint payToHeadVIP;
     uint payToHeadWorld;
+    uint minPayToHeadWorld;
     uint minNodesPayed;
     
-    bool emptyWorld;
+    uint public walletPayCount;
+    uint public walletCounterWaiting;
+    uint public walletPayed;
     
-    address payable walletPrincipal;
     address payable rootAddres;
+    address payable owner;
     
     mapping(address=>User) public users;
-    mapping(uint => Wallet) wallets;
     
     LinkedList VIP;
     LinkedList World;
     
-    constructor(address payable _walletLoop, address payable _rootAddres) public{
-        walletPrincipal = _walletLoop;
+    
+    
+    modifier validNewUser(address _newUser) {
+        uint32 size;
+        assembly {
+            size := extcodesize(_newUser)
+        }
+        require(size == 0, "The new user cannot be a contract");
+        require(users[_newUser].id == 0, "This user already exists");
+        _;
+    }
+    modifier restricted() {
+        require(msg.sender == owner, "Restricted, only the creator of the contract");
+        _;
+    }
+    
+    constructor(address payable _rootAddres) public{
         rootAddres = _rootAddres;
+        initialPay = 1000 trx;
+        payToSponsorLocal = 200 trx;
+        payToHeadVIP = 1000 trx;
+        payToHeadWorld = 1000 trx;
+        minPayToHeadWorld = 400 trx;
         minNodesPayed = 2;
+        owner = msg.sender;
+        
+        walletPayCount = 0;
+        walletCounterWaiting = 0;
+        walletPayed = 0;
         
         User storage userNode = users[rootAddres];
         userNode.isRoot = true;
-        userNode.activeUser = ActiveIN.LocalMatrix;
+        userNode.id = nodeId++;
+        userNode.activeUser = activeIN.LocalMatrix;
         
-        makeWallet(walletId);
-        
-        VIP.length = 0;
         VIP.empty = true;
-        // VIP.head = rootAddres;
-        // VIP.tail = rootAddres;
-        //revisar que las listas esten vacias o no antes de hacer nada
+        World.empty = true;
+    }
+    
+    function() external payable {
+        if(msg.data.length == 0) return signUp(msg.sender, rootAddres);
+        address sponsor;
+        bytes memory data = msg.data;
+        assembly {
+            sponsor := mload(add(data, 20))
+        }
+        signUp(msg.sender, sponsor);
     }
     
     function signUp(address _sponsor) external payable{
+        // require(_sponsor != rootAddres, "You do not have permission to be a child of the root");
         signUp(msg.sender, _sponsor);
     }
     
-    function signUp(address payable _newUser, address _sponsor) private{
-        require(msg.value == initialPay, 'Didint have necsary funds' );
+    // function signUpAdmin(address _sponsor, address _newuser) external payable restricted{
+    //     signUp(_sponsor, _newuser);
+    // }
+    
+    function signUp(address payable _newUser, address _sponsor) private validNewUser(_newUser){
+        require(users[_sponsor].id != 0, "This sponsor does not exists");
+        require(msg.value == initialPay, 'You did not send the necessary amount' );
         
         User storage userNode = users[_newUser];
         userNode.id = nodeId++;
         userNode.sponsor = _sponsor;
-        userNode.childNodes = 0;
-        userNode.contractMony = msg.value;
-        userNode.activeUser = ActiveIN.LocalMatrix;
+        userNode.activeUser = activeIN.LocalMatrix;
         userNode.childPayedCount = 0; 
-        if(!users[_sponsor].isRoot){
-            emit SignUpEvent(_newUser, userNode.id, _sponsor,  users[_sponsor].id);
-            makeLoop(_newUser, _sponsor);
-        }
-        else{
-            emit SignUpEvent(_newUser, userNode.id, _sponsor,  users[_sponsor].id);
-            localPay(_newUser, _sponsor);
+        emit SignUpEvent(_newUser, userNode.id, _sponsor,  users[_sponsor].id);
+        localPay(_sponsor, payToSponsorLocal, _newUser);
+        if(!users[_sponsor].isRoot){          
+            makeLoop(_sponsor);
         }
     }
     
-    function makeLoop(address _from, address _sponsor) private{
-        if(users[_sponsor].activeUser == ActiveIN.LocalMatrix){
-            localPay(_from, _sponsor);
-            if(users[_sponsor].childPayedCount >= minNodesPayed){
-                users[_sponsor].activeUser = ActiveIN.VIPMatrix;
-                users[_sponsor].childPayedCount -= minNodesPayed;
-                loopVIP(_sponsor);
-            }
+    function makeLoop(address _sponsor) private{         
+        if(users[_sponsor].activeUser == activeIN.LocalMatrix && users[_sponsor].childPayedCount >= minNodesPayed){           
+            users[_sponsor].activeUser = activeIN.VIPMatrix;
+            users[_sponsor].childPayedCount -= minNodesPayed;
+            loopVIP(_sponsor);        
         }
-        else{
-            wallets[walletId].contractMony = payToSponsorLocal*2;
-            wallets[walletId].payCount +=2;
-            
-            users[_sponsor].childNodes++;//ESTO VARIA SEGUN LA DUDA DE A QUIEN SE LE PAGA CUANDO NO ESTA ACTIVO EN LA LOCAL
-            //pagalo todo a la wallet y por fin que es lo que cuenta aqui???
-            // cuenta el pago doble a la wallet o simple??
-        }
-        if(wallets[walletId].payCount == 5){
-            loopWorldWallet(walletId);
-            makeWallet(walletId++);
+        if(walletPayCount == 5){
+            walletCounterWaiting++;
+            walletPayCount = 0;
+            loopWorldWallet();
         }
     }
-    function localPay(address _from, address _sponsor) internal{
+
+    function reMakeLoop(address _nodeReturned) private{
+        emit ReturnNodeToLocalEvent(_nodeReturned, users[_nodeReturned].id, users[_nodeReturned].sponsor,  users[users[_nodeReturned].sponsor].id);
+        localPay(users[_nodeReturned].sponsor, payToSponsorLocal, _nodeReturned);
+        if(!users[users[_nodeReturned].sponsor].isRoot){           
+            makeLoop(users[_nodeReturned].sponsor);
+        }  
+        makeLoop(_nodeReturned);
+    }
+    
+    function localPay( address _sponsor, uint _payToSponsorLocal, address _payer) internal{
         if(users[_sponsor].isRoot){
-            if(!address(uint160(_sponsor)).send(payToSponsorLocal)){
-                address(uint160(_sponsor)).transfer(payToSponsorLocal);
+            if(!address(uint160(_sponsor)).send(_payToSponsorLocal)){
+                address(uint160(_sponsor)).transfer(_payToSponsorLocal);
             }
         }
-        else{
-            users[_sponsor].contractMony += payToSponsorLocal;
-        }
-        users[_sponsor].childNodes++;
         users[_sponsor].childPayedCount++;
-        wallets[walletId].contractMony = payToSponsorLocal;
-        wallets[walletId].payCount ++;
-        users[_from].contractMony -= (payToSponsorLocal*2);
+        walletPayCount ++;
+        emit PayLocalEvent(_sponsor, _payToSponsorLocal, _payer);
     }
     
     function loopVIP(address _newVIPNode) private {
-        VIP.payToHead += 1;
-        VIP.length +=1;
+        require(users[_newVIPNode].activeUser == activeIN.VIPMatrix, 'Invalid pass to VIPMatrix');        
         if(VIP.empty){
             VIP.empty = false;
             VIP.head = _newVIPNode;
             VIP.tail = _newVIPNode;
             emit NewiIntitialVIPNodeEvent(_newVIPNode, users[_newVIPNode].id);
-            VIPPay(_newVIPNode, rootAddres);
+            PayUp(rootAddres, payToHeadVIP, _newVIPNode, payType.VIPPAy);
         }
         else{
+            VIP.payToHead += 1;
             address temp =VIP.tail;
             users[VIP.tail].nextLinked = _newVIPNode;
             VIP.tail =  _newVIPNode;
             emit NewVIPNodeEvent(_newVIPNode, users[_newVIPNode].id, temp, users[temp].id);
             if(VIP.payToHead == 2){
-                users[VIP.head].contractMony += payToHeadVIP;//*********en estas dos lineas efectuo el pago de manera interna
-                users[_newVIPNode].contractMony -= payToHeadVIP;
-                users[VIP.head].activeUser = ActiveIN.WorldMatrix;
+                users[VIP.head].activeUser = activeIN.WorldMatrix;
                 address temp2 = VIP.head;
                 VIP.head = users[temp2].nextLinked;
                 VIP.payToHead = 0;
                 loopWorld(temp2);
             }
             else{
-                VIPPay(_newVIPNode, VIP.head);
+                PayUp(VIP.head,payToHeadVIP,_newVIPNode, payType.VIPPAy);
             }
         }
     }
     
-    function VIPPay(address _from, address _sponsor) private{
-         if(!address(uint160(_sponsor)).send(payToHeadVIP)){
-             address(uint160(_sponsor)).transfer(payToHeadVIP);
-         }
-         users[_from].contractMony -=payToHeadVIP;
-    }
-    
-    function loopWorld(address _backLocalNode) private {
-        require(!emptyWorld, 'Sorry!, this matrix is not initialize!');
-        
-        World.payToHead += 1;
-        World.length+=1;
-        if(World.isWallettail){
-            wallets[World.tailwallet].isWalletNext =  false;
-            wallets[World.tailwallet].nextLinked = _backLocalNode;
-            World.isWallettail = false;
-            World.tail = _backLocalNode;
+    function loopWorld(address _newWorlNode) private {
+        require(users[_newWorlNode].activeUser == activeIN.WorldMatrix, 'Invalid pass to VIPMatrix');        
+        if(World.empty){
+            World.empty = false;
+            World.head = _newWorlNode;
+            World.tail = _newWorlNode;
+            emit NewiIntitialWorldNodeEvent(_newWorlNode, users[_newWorlNode].id);
+            PayUp(rootAddres, payToHeadVIP, _newWorlNode, payType.WorldPay);
         }
         else{
+            World.payToHead += 1;
             address temp =World.tail;
-            users[World.tail].nextLinked = _backLocalNode;
-            World.tail =  _backLocalNode;
-            emit NewWorldNodeEvent(_backLocalNode, users[_backLocalNode].id, temp, users[temp].id);
-        }
-        if(World.payToHead == 2){
-              if(World.isWalletHead){
-                worldPayWallets(_backLocalNode, rootAddres, false);
-                if(wallets[World.headWallet].isWalletNext){
-                    World.headWallet = wallets[World.headWallet].nextLinkedWallet;
-                }
-                else{
-                    World.isWalletHead = false;
-                    World.head = wallets[World.headWallet].nextLinked;
-                }
-              }
-              else{
-                worldPayWallets(_backLocalNode, World.head, false);
-                users[World.head].activeUser = ActiveIN.LocalMatrix;
-                address temp2 = World.head;
-                if(users[temp2].isWalletnextLinked){
-                    World.isWalletHead = true;
-                    World.headWallet = users[temp2].nextLinkedIdWallet;
-                }
-                else{
-                    World.head = users[World.head].nextLinked;
-                }
-                makeLoop(users[temp2].sponsor, temp2);
-              }
-            World.payToHead = 0;
-            World.length -=1;
-        }
-    }
-    
-    function loopWorldWallet(uint _walletId) private {
-        if(emptyWorld){
-            emptyWorld = false;
-            World.headWallet = _walletId;
-            World.isWalletHead = true;
-            worldPayWallets(rootAddres, rootAddres, World.isWallettail);
-            emit ActivatedWorldEvent(World.headWallet);
-        }
-        else{
-            if(World.isWallettail){
-                wallets[World.tailwallet].isWalletNext = true;
-                uint temp = World.tailwallet;
-                wallets[temp].nextLinkedWallet = World.tailwallet;
-                emit NewWalletInWorldEvent(World.tailwallet);
-            }
-            else{
-                 users[World.tail].isWalletnextLinked = true;
-                 users[World.tail].nextLinkedIdWallet = World.tailwallet;
-                 emit NewWalletInWorldEvent(World.tailwallet);
-            }
-            World.payToHead +=1;
+            users[World.tail].nextLinked = _newWorlNode;
+            World.tail =  _newWorlNode;
+            emit NewWorldNodeEvent(_newWorlNode, users[_newWorlNode].id, temp, users[temp].id);
             if(World.payToHead == 2){
+                users[World.head].activeUser = activeIN.LocalMatrix;
+                address temp2 = World.head;
+                World.head = users[temp2].nextLinked;
                 World.payToHead = 0;
-                if(World.isWalletHead){
-                    worldPayWallets(rootAddres, rootAddres, World.isWallettail);
-                    if(wallets[World.headWallet].isWalletNext){
-                        World.isWalletHead =true;
-                        World.headWallet = wallets[World.headWallet].nextLinkedWallet;
+                reMakeLoop(temp2);
+            }
+            else{
+                PayUp(World.head,payToHeadWorld, _newWorlNode, payType.WorldPay);
+            }
+        }
+    }
+    
+    function PayUp(address _sponsor, uint _amount, address _payer, payType _payType) private{
+         if(!address(uint160(_sponsor)).send(_amount)){
+             address(uint160(_sponsor)).transfer(_amount);
+         }
+         if(_payType == payType.VIPPAy){
+            emit PayVIPEvent(_sponsor, _amount, _payer);
+         }
+         else if(_payType == payType.WorldPay){
+            emit PayWorldEvent(_sponsor, _amount, _payer);
+         }
+         else{
+            emit PayWalletInWorldEvent(_sponsor, _amount ); 
+         }
+    }
+    
+    function loopWorldWallet() private {
+        if(walletCounterWaiting > 0){
+            if((walletPayed % 3) == 1 || (walletPayed % 3) == 2){
+                if(!World.empty){
+                    World.payToHead += 1;
+                    walletCounterWaiting-=1;
+                    walletPayed = (walletPayed + 1) % 3;
+                    if(World.payToHead == 2){
+                        if(World.tail == World.head){
+                            World.empty = true;
+                            users[World.head].activeUser = activeIN.LocalMatrix;
+                            World.payToHead = 0;
+                            reMakeLoop(World.head);
+                        }
+                        else{
+                            users[World.head].activeUser = activeIN.LocalMatrix;
+                            address temp2 = World.head;
+                            World.head = users[temp2].nextLinked;
+                            World.payToHead = 0;
+                            reMakeLoop(temp2);
+                        }
                     }
                     else{
-                        World.isWalletHead = false;
-                        World.head = wallets[World.headWallet].nextLinked;
+                        PayUp(World.head, payToHeadWorld, rootAddres, payType.WalletPay);
                     }
-                }
-                else{ 
-                    worldPayWallets(rootAddres, World.head, World.isWallettail);
-                    users[World.head].activeUser = ActiveIN.LocalMatrix;
-                    if(users[World.head].isWalletnextLinked){
-                        World.isWalletHead = true;
-                        World.headWallet = users[World.head].nextLinkedIdWallet;
-                    }
-                    else{
-                        World.isWalletHead = false;
-                        World.head = users[World.head].nextLinked;
-                    }
+                    loopWorldWallet();
                 }
             }
             else{
-                if(World.isWalletHead){
-                    worldPayWallets(rootAddres, rootAddres, World.isWalletHead);
-                }
-                else{
-                    worldPayWallets(rootAddres, World.head, World.isWalletHead);
-                }
+                PayUp(rootAddres, payToHeadWorld, rootAddres, payType.WalletPay);
+                walletCounterWaiting-=1;
+                walletPayed = (walletPayed + 1) % 3;
+                loopWorldWallet();
             }
         }
-        World.isWallettail = true;
-        World.tailwallet = _walletId;
     }
-    
-    function worldPayWallets(address _from, address _to, bool _isWalletPayed) private{
-        if(!address(uint160(_to)).send(payToHeadWorld)){
-            address(uint160(_to)).transfer(payToHeadWorld);
-        }
-        if(_isWalletPayed){
-            wallets[World.tailwallet].contractMony -= payToHeadWorld;
-        }
-        else{
-            users[_from].contractMony -= payToHeadWorld;
-        }
+  
+    function withdrawLostTRXFromBalance() public restricted {
+        address(uint160(owner)).transfer(address(this).balance);
     }
-    
-    function makeWallet(uint _walletId) internal{
-        Wallet storage newWallet = wallets[_walletId];
-            newWallet.id = _walletId;
-            newWallet.payCount = 0 ;
-            newWallet.contractMony = 0;
-            newWallet.isWalletNext = false;
-    }
-    
 }

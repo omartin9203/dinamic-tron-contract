@@ -3,18 +3,18 @@ pragma solidity ^0.5.10;
 contract LocalIndianContract{
     
     event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
-    event ReturnNodeToLocalEvent(address indexed _nodeReturn, uint indexed _userIdNodeREturn, address indexed _sponsor, uint _sponsorId);
+    event ReturnNodeToLocalEvent(address indexed _nodeReturn, uint indexed _userIdNodeReturn, address indexed _sponsor, uint _sponsorId);
     event NewVIPNodeEvent(address indexed _newNode, uint indexed _userId, address indexed _parentNode, uint _parentNodeId);
-    event NewiIntitialVIPNodeEvent(address indexed _newNode, uint indexed _userId);
-    event NewiIntitialWorldNodeEvent(address indexed _newNode, uint indexed _userId);
+    event NewInitialVIPNodeEvent(address indexed _newNode, uint indexed _userId);
+    event NewInitialWorldNodeEvent(address indexed _newNode, uint indexed _userId);
     event NewWorldNodeEvent(address indexed _newNode, uint indexed _userId, address indexed _parentNode, uint _parentNodeId);
-    event PayWalletInWorldEvent(address indexed _payable, uint indexed amount);
-    event PayLocalEvent(address indexed _payable, uint indexed _amaount, address indexed payer);
-    event PayVIPEvent(address indexed _payable, uint indexed _amaount, address indexed payer);
-    event PayWorldEvent(address indexed _payable, uint indexed _amaount, address indexed payer);
+    event PayBankInWorldEvent(address indexed _user, uint indexed _amount);
+    event PayLocalEvent(address indexed _user, uint indexed _amount, address indexed _payer);
+    event PayVIPEvent(address indexed _user, uint indexed _amount, address indexed _payer);
+    event PayWorldEvent(address indexed _user, uint indexed _amount, address indexed _payer);
     
     enum activeIN { LocalMatrix, VIPMatrix, WorldMatrix }
-    enum payType {VIPPAy, WorldPay, WalletPay}
+    enum payType {VipPay, WorldPay, WalletPay}
     
     struct User {
         uint id;
@@ -76,10 +76,6 @@ contract LocalIndianContract{
         minPayToHeadWorld = 400 trx;
         minNodesPayed = 2;
         owner = msg.sender;
-        
-        walletPayCount = 0;
-        walletCounterWaiting = 0;
-        walletPayed = 0;
         
         User storage userNode = users[rootAddres];
         userNode.isRoot = true;
@@ -154,7 +150,7 @@ contract LocalIndianContract{
             }
         }
         users[_sponsor].childPayedCount++;
-        walletPayCount ++;
+        walletPayCount++;
         emit PayLocalEvent(_sponsor, _payToSponsorLocal, _payer);
     }
     
@@ -164,14 +160,14 @@ contract LocalIndianContract{
             VIP.empty = false;
             VIP.head = _newVIPNode;
             VIP.tail = _newVIPNode;
-            emit NewiIntitialVIPNodeEvent(_newVIPNode, users[_newVIPNode].id);
-            PayUp(rootAddres, payToHeadVIP, _newVIPNode, payType.VIPPAy);
+            emit NewInitialVIPNodeEvent(_newVIPNode, users[_newVIPNode].id);
+            PayUp(rootAddres, payToHeadVIP, _newVIPNode, payType.VipPay);
         }
         else{
             VIP.payToHead += 1;
             address temp =VIP.tail;
             users[VIP.tail].nextLinked = _newVIPNode;
-            VIP.tail =  _newVIPNode;
+            VIP.tail = _newVIPNode;
             emit NewVIPNodeEvent(_newVIPNode, users[_newVIPNode].id, temp, users[temp].id);
             if(VIP.payToHead == 2){
                 users[VIP.head].activeUser = activeIN.WorldMatrix;
@@ -181,26 +177,26 @@ contract LocalIndianContract{
                 loopWorld(temp2);
             }
             else{
-                PayUp(VIP.head,payToHeadVIP,_newVIPNode, payType.VIPPAy);
+                PayUp(VIP.head,payToHeadVIP,_newVIPNode, payType.VipPay);
             }
         }
     }
     
-    function loopWorld(address _newWorlNode) private {
-        require(users[_newWorlNode].activeUser == activeIN.WorldMatrix, 'Invalid pass to VIPMatrix');        
+    function loopWorld(address _newWorldNode) private {
+        require(users[_newWorldNode].activeUser == activeIN.WorldMatrix, 'Invalid pass to VIPMatrix');        
         if(World.empty){
             World.empty = false;
-            World.head = _newWorlNode;
-            World.tail = _newWorlNode;
-            emit NewiIntitialWorldNodeEvent(_newWorlNode, users[_newWorlNode].id);
-            PayUp(rootAddres, payToHeadVIP, _newWorlNode, payType.WorldPay);
+            World.head = _newWorldNode;
+            World.tail = _newWorldNode;
+            emit NewInitialWorldNodeEvent(_newWorldNode, users[_newWorldNode].id);
+            PayUp(rootAddres, payToHeadVIP, _newWorldNode, payType.WorldPay);
         }
         else{
-            World.payToHead += 1;
+            World.payToHead++;
             address temp =World.tail;
-            users[World.tail].nextLinked = _newWorlNode;
-            World.tail =  _newWorlNode;
-            emit NewWorldNodeEvent(_newWorlNode, users[_newWorlNode].id, temp, users[temp].id);
+            users[World.tail].nextLinked = _newWorldNode;
+            World.tail =  _newWorldNode;
+            emit NewWorldNodeEvent(_newWorldNode, users[_newWorldNode].id, temp, users[temp].id);
             if(World.payToHead == 2){
                 users[World.head].activeUser = activeIN.LocalMatrix;
                 address temp2 = World.head;
@@ -209,7 +205,7 @@ contract LocalIndianContract{
                 reMakeLoop(temp2);
             }
             else{
-                PayUp(World.head,payToHeadWorld, _newWorlNode, payType.WorldPay);
+                PayUp(World.head,payToHeadWorld, _newWorldNode, payType.WorldPay);
             }
         }
     }
@@ -218,14 +214,14 @@ contract LocalIndianContract{
          if(!address(uint160(_sponsor)).send(_amount)){
              address(uint160(_sponsor)).transfer(_amount);
          }
-         if(_payType == payType.VIPPAy){
+         if(_payType == payType.VipPay){
             emit PayVIPEvent(_sponsor, _amount, _payer);
          }
          else if(_payType == payType.WorldPay){
             emit PayWorldEvent(_sponsor, _amount, _payer);
          }
          else{
-            emit PayWalletInWorldEvent(_sponsor, _amount ); 
+            emit PayBankInWorldEvent(_sponsor, _amount); 
          }
     }
     
@@ -233,8 +229,8 @@ contract LocalIndianContract{
         if(walletCounterWaiting > 0){
             if((walletPayed % 3) == 1 || (walletPayed % 3) == 2){
                 if(!World.empty){
-                    World.payToHead += 1;
-                    walletCounterWaiting-=1;
+                    World.payToHead++;
+                    walletCounterWaiting--;
                     walletPayed = (walletPayed + 1) % 3;
                     if(World.payToHead == 2){
                         if(World.tail == World.head){

@@ -127,9 +127,7 @@ contract LocalIndianContract{
             users[_sponsor].childPayedCount -= minNodesPayed;
             loopVIP(_sponsor);        
         }
-        if(walletPayCount == 5){
-            walletCounterWaiting++;
-            walletPayCount = 0;
+        if(walletCounterWaiting > 0) {
             loopWorldWallet();
         }
     }
@@ -151,6 +149,10 @@ contract LocalIndianContract{
         }
         users[_sponsor].childPayedCount++;
         walletPayCount++;
+        if(walletPayCount == 5){
+            walletCounterWaiting++;
+            walletPayCount = 0;
+        }
         emit PayLocalEvent(_sponsor, _payToSponsorLocal, _payer);
     }
     

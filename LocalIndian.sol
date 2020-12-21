@@ -5,7 +5,6 @@ contract LocalIndianContract{
     event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
     event ReturnNodeToLocalEvent(address indexed _nodeReturn, uint indexed _userIdNodeReturn, address indexed _sponsor, uint _sponsorId);
     event NewVIPNodeEvent(address indexed _newNode, uint indexed _userId, address indexed _parentNode, uint _parentNodeId);
-    event NewInitialVIPNodeEvent(address indexed _newNode, uint indexed _userId);
     event NewInitialWorldNodeEvent(address indexed _newNode, uint indexed _userId);
     event NewWorldNodeEvent(address indexed _newNode, uint indexed _userId, address indexed _parentNode, uint _parentNodeId);
     event PayBankInWorldEvent(address indexed _user, uint indexed _amount);
@@ -23,6 +22,7 @@ contract LocalIndianContract{
         activeIN activeUser;
         address nextLinked;
         bool isRoot;
+        uint payVIP;
     }
     struct LinkedList{
         address head;
@@ -48,7 +48,6 @@ contract LocalIndianContract{
     
     mapping(address=>User) public users;
     
-    LinkedList VIP;
     LinkedList World;
     
     
@@ -82,7 +81,6 @@ contract LocalIndianContract{
         userNode.id = nodeId++;
         userNode.activeUser = activeIN.LocalMatrix;
         
-        VIP.empty = true;
         World.empty = true;
     }
     
@@ -157,35 +155,33 @@ contract LocalIndianContract{
     }
     
     function loopVIP(address _newVIPNode) private {
-        require(users[_newVIPNode].activeUser == activeIN.VIPMatrix, 'Invalid pass to VIPMatrix');        
-        if(VIP.empty){
-            VIP.empty = false;
-            VIP.head = _newVIPNode;
-            VIP.tail = _newVIPNode;
-            emit NewInitialVIPNodeEvent(_newVIPNode, users[_newVIPNode].id);
-            PayUp(rootAddres, payToHeadVIP, _newVIPNode, payType.VipPay);
+        require(users[_newVIPNode].activeUser == activeIN.VIPMatrix, 'Invalid pass to VIPMatrix');
+        emit NewVIPNodeEvent(_newVIPNode, users[_newVIPNode].id, users[_newVIPNode].sponsor, users[users[_newVIPNode].sponsor].id);
+        recursiveVIP(_newVIPNode, users[_newVIPNode].sponsor);
+    }
+
+    function recursiveVIP(address _newVIPNode, address _sponsor) private{
+        if(users[_sponsor].isRoot){
+            PayUp(_sponsor, payToHeadVIP, _newVIPNode, payType.VipPay);
         }
-        else{
-            VIP.payToHead += 1;
-            address temp =VIP.tail;
-            users[VIP.tail].nextLinked = _newVIPNode;
-            VIP.tail = _newVIPNode;
-            emit NewVIPNodeEvent(_newVIPNode, users[_newVIPNode].id, temp, users[temp].id);
-            if(VIP.payToHead == 2){
-                users[VIP.head].activeUser = activeIN.WorldMatrix;
-                address temp2 = VIP.head;
-                VIP.head = users[temp2].nextLinked;
-                VIP.payToHead = 0;
-                loopWorld(temp2);
+        else if(users[_sponsor].activeUser == activeIN.VIPMatrix){
+            users[_sponsor].payVIP +=1;
+            if(users[_sponsor].payVIP == 2){
+                users[_sponsor].activeUser = activeIN.WorldMatrix;
+                users[_sponsor].payVIP = 0;
+                loopWorld(_sponsor);
             }
             else{
-                PayUp(VIP.head,payToHeadVIP,_newVIPNode, payType.VipPay);
+                PayUp(_sponsor, payToHeadVIP, _newVIPNode, payType.VipPay);
             }
         }
-    }
+        else{
+            recursiveVIP(_newVIPNode, users[_sponsor].sponsor);
+        }
+    }  
     
     function loopWorld(address _newWorldNode) private {
-        require(users[_newWorldNode].activeUser == activeIN.WorldMatrix, 'Invalid pass to VIPMatrix');        
+        require(users[_newWorldNode].activeUser == activeIN.WorldMatrix, 'Invalid pass to WorldMatrix');        
         if(World.empty){
             World.empty = false;
             World.head = _newWorldNode;

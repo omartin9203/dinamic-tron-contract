@@ -7,6 +7,7 @@ contract LocalIndianContract{
     event NewVIPNodeEvent(address indexed _newNode, uint indexed _userId, address indexed _parentNode, uint _parentNodeId);
     event NewInitialWorldNodeEvent(address indexed _newNode, uint indexed _userId);
     event NewWorldNodeEvent(address indexed _newNode, uint indexed _userId, address indexed _parentNode, uint _parentNodeId);
+    event VipSecondPayEvent(uint indexed _userId, uint indexed _fromId);
     event PayBankInWorldEvent(address indexed _user, uint indexed _amount);
     event PayLocalEvent(address indexed _user, uint indexed _amount, address indexed _payer);
     event PayVIPEvent(address indexed _user, uint indexed _amount, address indexed _payer);
@@ -167,6 +168,7 @@ contract LocalIndianContract{
         else if(users[_sponsor].activeUser == activeIN.VIPMatrix){
             users[_sponsor].payVIP +=1;
             if(users[_sponsor].payVIP == 2){
+                emit VipSecondPayEvent(users[_sponsor].id, users[_newVIPNode].id);
                 users[_sponsor].activeUser = activeIN.WorldMatrix;
                 users[_sponsor].payVIP = 0;
                 loopWorld(_sponsor);

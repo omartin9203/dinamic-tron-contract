@@ -1,6 +1,6 @@
 pragma solidity ^0.5.10;
 
-contract LocalIndianContract{
+contract DinamicTron{
     
     event SignUpEvent(address indexed _newUser, uint indexed _userId, address indexed _sponsor, uint _sponsorId);
     event ReturnNodeToLocalEvent(address indexed _nodeReturn, uint indexed _userIdNodeReturn, address indexed _sponsor, uint _sponsorId);

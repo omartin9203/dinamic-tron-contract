@@ -44,7 +44,7 @@ contract DinamicTron{
     uint public walletCounterWaiting;
     uint public walletPayed;
     
-    address payable rootAddres;
+    address payable rootAddress;
     address payable owner;
     
     mapping(address=>User) public users;
@@ -67,8 +67,8 @@ contract DinamicTron{
         _;
     }
     
-    constructor(address payable _rootAddres) public{
-        rootAddres = _rootAddres;
+    constructor(address payable _rootAddress) public{
+        rootAddress = _rootAddress;
         initialPay = 1000 trx;
         payToSponsorLocal = 200 trx;
         payToHeadVIP = 1000 trx;
@@ -77,7 +77,7 @@ contract DinamicTron{
         minNodesPayed = 2;
         owner = msg.sender;
         
-        User storage userNode = users[rootAddres];
+        User storage userNode = users[rootAddress];
         userNode.isRoot = true;
         userNode.id = nodeId++;
         userNode.activeUser = activeIN.LocalMatrix;
@@ -86,7 +86,7 @@ contract DinamicTron{
     }
     
     function() external payable {
-        if(msg.data.length == 0) return signUp(msg.sender, rootAddres);
+        if(msg.data.length == 0) return signUp(msg.sender, rootAddress);
         address sponsor;
         bytes memory data = msg.data;
         assembly {
@@ -95,14 +95,14 @@ contract DinamicTron{
         signUp(msg.sender, sponsor);
     }
     
-    function signUp(address _sponsor) external payable{
-        // require(_sponsor != rootAddres, "You do not have permission to be a child of the root");
+    function signUp(address _sponsor) external payable {
+        require(_sponsor != rootAddress, "You do not have permission to be a child of the root");
         signUp(msg.sender, _sponsor);
     }
     
-    // function signUpAdmin(address _sponsor, address _newuser) external payable restricted{
-    //     signUp(_sponsor, _newuser);
-    // }
+     function signUpAdmin(address payable _newUser, address _sponsor) external payable restricted {
+         signUp(_newUser, _sponsor);
+     }
     
     function signUp(address payable _newUser, address _sponsor) private validNewUser(_newUser){
         require(users[_sponsor].id != 0, "This sponsor does not exists");
@@ -189,7 +189,7 @@ contract DinamicTron{
             World.head = _newWorldNode;
             World.tail = _newWorldNode;
             emit NewInitialWorldNodeEvent(_newWorldNode, users[_newWorldNode].id);
-            PayUp(rootAddres, payToHeadVIP, _newWorldNode, payType.WorldPay);
+            PayUp(rootAddress, payToHeadVIP, _newWorldNode, payType.WorldPay);
         }
         else{
             World.payToHead++;
@@ -248,13 +248,13 @@ contract DinamicTron{
                         }
                     }
                     else{
-                        PayUp(World.head, payToHeadWorld, rootAddres, payType.WalletPay);
+                        PayUp(World.head, payToHeadWorld, rootAddress, payType.WalletPay);
                     }
                     loopWorldWallet();
                 }
             }
             else{
-                PayUp(rootAddres, payToHeadWorld, rootAddres, payType.WalletPay);
+                PayUp(rootAddress, payToHeadWorld, rootAddress, payType.WalletPay);
                 walletCounterWaiting-=1;
                 walletPayed = (walletPayed + 1) % 3;
                 loopWorldWallet();
